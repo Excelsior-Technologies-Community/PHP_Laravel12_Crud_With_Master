@@ -585,6 +585,19 @@ categories/index.blade.php
 
 @endsection
 ```
+Run server
+```
+php artisan serve
+```
+
+Open:
+```
+http://127.0.0.1:8000/categories
+```
+
+<img width="1521" height="366" alt="image" src="https://github.com/user-attachments/assets/699c880d-60e1-43f9-8eaa-bd2824a49914" />
+<img width="1507" height="422" alt="image" src="https://github.com/user-attachments/assets/c6cb554f-d23f-4b61-ae9e-c57f28c8f3c3" />
+
 # STEP 9: Add Categories Column to Products Table
 ```
 php artisan make:migration add_categories_to_products_table
