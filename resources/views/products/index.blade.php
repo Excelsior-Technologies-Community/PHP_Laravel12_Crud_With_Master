@@ -20,7 +20,7 @@
                     <th>Image</th>
                     <th>Size</th>
                     <th>Color</th>
-                    <th>Category</th>
+                    
                     <th>Price</th>
                     {{-- Action column with fixed width for buttons --}}
                     <th width="150">Action</th>
@@ -44,7 +44,7 @@
                         
                         <td>{{ $product->size }}</td>
                         <td>{{ $product->color }}</td>
-                        <td>{{ $product->categories }}</td>
+                       
                         
                         {{-- Display price (consider formatting with currency symbol) --}}
                         <td>${{ number_format($product->price, 2) }}</td>
