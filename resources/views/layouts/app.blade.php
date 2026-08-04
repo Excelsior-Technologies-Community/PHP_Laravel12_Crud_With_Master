@@ -10,7 +10,13 @@
 
 <nav class="navbar navbar-dark bg-dark mb-4">
     <div class="container">
-        <a class="navbar-brand" href="{{ route('products.index') }}">Product CRUD</a>
+        <a class="navbar-brand" href="{{ route('dashboard') }}">Inventory CRUD</a>
+        <div class="navbar-nav d-flex flex-row gap-3">
+            <a class="nav-link text-white {{ request()->routeIs('dashboard') ? 'active' : '' }}" href="{{ route('dashboard') }}">Dashboard</a>
+            <a class="nav-link text-white {{ request()->routeIs('products.*') ? 'active' : '' }}" href="{{ route('products.index') }}">Products</a>
+            <a class="nav-link text-white {{ request()->routeIs('categories.*') ? 'active' : '' }}" href="{{ route('categories.index') }}">Categories</a>
+            <a class="nav-link text-white {{ request()->routeIs('sizes.*') ? 'active' : '' }}" href="{{ route('sizes.index') }}">Sizes</a>
+        </div>
     </div>
 </nav>
 
