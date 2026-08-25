@@ -7,11 +7,23 @@ use Illuminate\Http\Request;
 
 class CategoryController extends Controller
 {
-    public function index()
+    public function index(Request $request)
     {
-        $categories = Category::withCount('products')->orderBy('name')->get();
+        $categories = Category::withCount('products')
+            ->when($request->input('search'), function ($query, $search) {
+                $query->where(
+                    'name',
+                    'like',
+                    '%' . $search . '%'
+                );
+            })
+            ->orderBy('id', 'asc')
+            ->get();
 
-        return view('categories.index', compact('categories'));
+        return view(
+            'categories.index',
+            compact('categories')
+        );
     }
 
     public function create()
@@ -22,47 +34,79 @@ class CategoryController extends Controller
     public function store(Request $request)
     {
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name',
+            'name' =>
+            'required|string|max:255|unique:categories,name',
         ]);
 
-        Category::create($request->only(['name']));
+        Category::create(
+            $request->only(['name'])
+        );
 
-        return redirect()->route('categories.index')
-            ->with('success', 'Category created successfully!');
+        return redirect()
+            ->route('categories.index')
+            ->with(
+                'success',
+                'Category created successfully!'
+            );
     }
 
     public function show(Category $category)
     {
-        return view('categories.show', compact('category'));
+        return view(
+            'categories.show',
+            compact('category')
+        );
     }
 
     public function edit(Category $category)
     {
-        return view('categories.edit', compact('category'));
+        return view(
+            'categories.edit',
+            compact('category')
+        );
     }
 
-    public function update(Request $request, Category $category)
-    {
+    public function update(
+        Request $request,
+        Category $category
+    ) {
         $request->validate([
-            'name' => 'required|string|max:255|unique:categories,name,'.$category->id,
+            'name' =>
+            'required|string|max:255|unique:categories,name,' .
+                $category->id,
         ]);
 
-        $category->update($request->only(['name']));
+        $category->update(
+            $request->only(['name'])
+        );
 
-        return redirect()->route('categories.index')
-            ->with('success', 'Category updated successfully!');
+        return redirect()
+            ->route('categories.index')
+            ->with(
+                'success',
+                'Category updated successfully!'
+            );
     }
 
     public function destroy(Category $category)
     {
         if ($category->products()->exists()) {
-            return redirect()->route('categories.index')
-                ->with('error', 'Cannot delete a category that has products. Reassign products first.');
+
+            return redirect()
+                ->route('categories.index')
+                ->with(
+                    'error',
+                    'Cannot delete a category that has products. Reassign products first.'
+                );
         }
 
         $category->delete();
 
-        return redirect()->route('categories.index')
-            ->with('success', 'Category deleted successfully!');
+        return redirect()
+            ->route('categories.index')
+            ->with(
+                'success',
+                'Category deleted successfully!'
+            );
     }
 }
