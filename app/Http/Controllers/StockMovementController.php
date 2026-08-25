@@ -18,15 +18,15 @@ class StockMovementController extends Controller
             ->when($request->input('search'), function ($query, $search) {
                 $query->whereHas('product', function ($productQuery) use ($search) {
                     $productQuery
-                        ->where('name', 'like', '%'.$search.'%')
-                        ->orWhere('sku', 'like', '%'.$search.'%');
+                        ->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('sku', 'like', '%' . $search . '%');
                 });
             })
             ->when($request->input('type'), function ($query, $type) {
                 $query->where('type', $type);
             })
-            ->latest()
-            ->paginate(15)
+            ->oldest()
+            ->paginate(5)
             ->withQueryString();
 
         return view('stock_movements.index', compact('movements'));
@@ -57,7 +57,7 @@ class StockMovementController extends Controller
             return back()
                 ->withInput()
                 ->withErrors([
-                    'quantity' => 'Stock out quantity cannot be greater than current stock ('.$product->stock_quantity.').',
+                    'quantity' => 'Stock out quantity cannot be greater than current stock (' . $product->stock_quantity . ').',
                 ]);
         }
 
@@ -104,6 +104,82 @@ class StockMovementController extends Controller
         return view(
             'stock_movements.product-history',
             compact('product', 'movements')
+        );
+    }
+
+    public function export(Request $request)
+    {
+        $movements = StockMovement::with('product')
+            ->when($request->input('search'), function ($query, $search) {
+
+                $query->whereHas('product', function ($productQuery) use ($search) {
+
+                    $productQuery
+                        ->where(
+                            'name',
+                            'like',
+                            '%' . $search . '%'
+                        )
+                        ->orWhere(
+                            'sku',
+                            'like',
+                            '%' . $search . '%'
+                        );
+                });
+            })
+            ->when($request->input('type'), function ($query, $type) {
+                $query->where('type', $type);
+            })
+            ->latest()
+            ->get();
+
+        $filename =
+            'stock_movements_' .
+            date('Y-m-d_H-i-s') .
+            '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' =>
+            'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($movements) {
+
+            $file = fopen('php://output', 'w');
+
+            fputcsv($file, [
+                'Date',
+                'Product',
+                'SKU',
+                'Type',
+                'Quantity',
+                'Previous Stock',
+                'New Stock',
+                'Reason',
+            ]);
+
+            foreach ($movements as $movement) {
+
+                fputcsv($file, [
+                    $movement->created_at,
+                    $movement->product->name ?? '',
+                    $movement->product->sku ?? '',
+                    $movement->type_label,
+                    $movement->quantity,
+                    $movement->previous_stock,
+                    $movement->new_stock,
+                    $movement->reason ?? '',
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream(
+            $callback,
+            200,
+            $headers
         );
     }
 }
