@@ -14,7 +14,10 @@ class ProductController extends Controller
     {
         $products = Product::with(['category', 'size'])
             ->when($request->input('search'), function ($query, $search) {
-                $query->where('name', 'like', '%'.$search.'%');
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', '%'.$search.'%')
+                        ->orWhere('sku', 'like', '%'.$search.'%');
+                });
             })
             ->when($request->input('category_id'), function ($query, $categoryId) {
                 $query->where('category_id', $categoryId);
@@ -25,11 +28,14 @@ class ProductController extends Controller
             ->when($request->input('color'), function ($query, $color) {
                 $query->where('color', $color);
             })
-            ->when($request->input('min_price'), function ($query, $minPrice) {
-                $query->where('price', '>=', $minPrice);
+            ->when($request->input('min_price') !== null && $request->input('min_price') !== '', function ($query) use ($request) {
+                $query->where('price', '>=', $request->input('min_price'));
             })
-            ->when($request->input('max_price'), function ($query, $maxPrice) {
-                $query->where('price', '<=', $maxPrice);
+            ->when($request->input('max_price') !== null && $request->input('max_price') !== '', function ($query) use ($request) {
+                $query->where('price', '<=', $request->input('max_price'));
+            })
+            ->when($request->input('status') !== null && $request->input('status') !== '', function ($query) use ($request) {
+                $query->where('status', (bool) $request->input('status'));
             })
             ->orderBy('id', 'desc')
             ->paginate(10)
@@ -38,7 +44,10 @@ class ProductController extends Controller
         $categories = Category::orderBy('name')->get();
         $sizes = Size::orderBy('name')->get();
 
-        return view('products.index', compact('products', 'categories', 'sizes'));
+        return view(
+            'products.index',
+            compact('products', 'categories', 'sizes')
+        );
     }
 
     public function create()
@@ -46,7 +55,10 @@ class ProductController extends Controller
         $categories = Category::orderBy('name')->get();
         $sizes = Size::orderBy('name')->get();
 
-        return view('products.create', compact('categories', 'sizes'));
+        return view(
+            'products.create',
+            compact('categories', 'sizes')
+        );
     }
 
     public function store(Request $request)
@@ -63,6 +75,7 @@ class ProductController extends Controller
             'sku' => 'nullable|string|max:100|unique:products,sku',
             'stock_quantity' => 'required|integer|min:0',
             'min_stock' => 'required|integer|min:0',
+            'status' => 'nullable|boolean',
         ]);
 
         $image = $this->resolveImage($request);
@@ -70,7 +83,9 @@ class ProductController extends Controller
         if ($image === null) {
             return back()
                 ->withInput()
-                ->withErrors(['image' => 'Please provide either an image file or an image URL.']);
+                ->withErrors([
+                    'image' => 'Please provide either an image file or an image URL.',
+                ]);
         }
 
         Product::create([
@@ -84,14 +99,22 @@ class ProductController extends Controller
             'sku' => $request->sku,
             'stock_quantity' => $request->stock_quantity,
             'min_stock' => $request->min_stock,
+            'status' => $request->boolean('status', true),
         ]);
 
-        return redirect()->route('products.index')
+        return redirect()
+            ->route('products.index')
             ->with('success', 'Product created successfully!');
     }
 
     public function show(Product $product)
     {
+        $product->load([
+            'category',
+            'size',
+            'stockMovements',
+        ]);
+
         return view('products.show', compact('product'));
     }
 
@@ -100,7 +123,10 @@ class ProductController extends Controller
         $categories = Category::orderBy('name')->get();
         $sizes = Size::orderBy('name')->get();
 
-        return view('products.edit', compact('product', 'categories', 'sizes'));
+        return view(
+            'products.edit',
+            compact('product', 'categories', 'sizes')
+        );
     }
 
     public function update(Request $request, Product $product)
@@ -117,6 +143,7 @@ class ProductController extends Controller
             'sku' => 'nullable|string|max:100|unique:products,sku,'.$product->id,
             'stock_quantity' => 'required|integer|min:0',
             'min_stock' => 'required|integer|min:0',
+            'status' => 'nullable|boolean',
         ]);
 
         $image = $this->resolveImage($request, $product);
@@ -135,43 +162,53 @@ class ProductController extends Controller
             'sku' => $request->sku,
             'stock_quantity' => $request->stock_quantity,
             'min_stock' => $request->min_stock,
+            'status' => $request->boolean('status'),
         ]);
 
-        return redirect()->route('products.index')
+        return redirect()
+            ->route('products.index')
             ->with('success', 'Product updated successfully!');
     }
 
     public function destroy(Product $product)
     {
         $this->deleteImage($product->image);
+
         $product->delete();
 
-        return redirect()->route('products.index')
+        return redirect()
+            ->route('products.index')
             ->with('success', 'Product deleted successfully!');
     }
 
     protected function uploadImage(Request $request): string
     {
         $imageName = time().'_'.uniqid().'.'.$request->image->extension();
-        $request->image->move(public_path('images'), $imageName);
+
+        $request->image->move(
+            public_path('images'),
+            $imageName
+        );
 
         return $imageName;
     }
 
     protected function deleteImage(?string $imageName): void
     {
-        if ($imageName && File::exists(public_path('images/'.$imageName))) {
+        if (
+            $imageName &&
+            !str_starts_with($imageName, 'http://') &&
+            !str_starts_with($imageName, 'https://') &&
+            File::exists(public_path('images/'.$imageName))
+        ) {
             File::delete(public_path('images/'.$imageName));
         }
     }
 
-    /**
-     * Resolve the image value from either an uploaded file or an online
-     * image URL. Returns null when neither is provided so the caller can
-     * decide how to handle the missing input.
-     */
-    protected function resolveImage(Request $request, ?Product $product = null): ?string
-    {
+    protected function resolveImage(
+        Request $request,
+        ?Product $product = null
+    ): ?string {
         if ($request->hasFile('image')) {
             if ($product) {
                 $this->deleteImage($product->image);
@@ -188,6 +225,6 @@ class ProductController extends Controller
             return $request->input('image_url');
         }
 
-        return null;
+        return $product?->image;
     }
 }

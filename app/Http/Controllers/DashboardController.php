@@ -11,24 +11,45 @@ class DashboardController extends Controller
     public function index()
     {
         $totalProducts = Product::count();
+
+        $activeProducts = Product::where('status', true)->count();
+
+        $inactiveProducts = Product::where('status', false)->count();
+
         $totalCategories = Category::count();
+
         $totalSizes = Size::count();
 
-        $lowStockProducts = Product::whereColumn('stock_quantity', '<=', 'min_stock')
+        $totalStock = Product::sum('stock_quantity');
+
+        $lowStockProducts = Product::whereColumn(
+            'stock_quantity',
+            '<=',
+            'min_stock'
+        )
             ->where('stock_quantity', '>', 0)
             ->with(['category', 'size'])
             ->get();
 
-        $outOfStockProducts = Product::where('stock_quantity', 0)
+        $outOfStockProducts = Product::where(
+            'stock_quantity',
+            0
+        )
             ->with(['category', 'size'])
             ->get();
 
-        return view('dashboard', compact(
-            'totalProducts',
-            'totalCategories',
-            'totalSizes',
-            'lowStockProducts',
-            'outOfStockProducts'
-        ));
+        return view(
+            'dashboard',
+            compact(
+                'totalProducts',
+                'activeProducts',
+                'inactiveProducts',
+                'totalCategories',
+                'totalSizes',
+                'totalStock',
+                'lowStockProducts',
+                'outOfStockProducts'
+            )
+        );
     }
 }
