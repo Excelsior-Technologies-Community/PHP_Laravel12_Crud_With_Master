@@ -14,8 +14,10 @@ use Illuminate\Support\Facades\Route;
 |--------------------------------------------------------------------------
 */
 
-Route::get('/', [DashboardController::class, 'index'])
-    ->name('dashboard');
+Route::get(
+    '/',
+    [DashboardController::class, 'index']
+)->name('dashboard');
 
 
 /*
@@ -24,11 +26,42 @@ Route::get('/', [DashboardController::class, 'index'])
 |--------------------------------------------------------------------------
 */
 
-Route::resource('categories', CategoryController::class);
+Route::resource(
+    'categories',
+    CategoryController::class
+);
 
-Route::resource('sizes', SizeController::class);
+Route::resource(
+    'sizes',
+    SizeController::class
+);
 
-Route::resource('products', ProductController::class);
+Route::resource(
+    'products',
+    ProductController::class
+);
+
+
+/*
+|--------------------------------------------------------------------------
+| Product Extra Features
+|--------------------------------------------------------------------------
+*/
+
+Route::get(
+    '/products-export',
+    [ProductController::class, 'export']
+)->name('products.export');
+
+Route::delete(
+    '/products-bulk-delete',
+    [ProductController::class, 'bulkDelete']
+)->name('products.bulk-delete');
+
+Route::patch(
+    '/products/{product}/toggle-status',
+    [ProductController::class, 'toggleStatus']
+)->name('products.toggle-status');
 
 
 /*
@@ -42,18 +75,20 @@ Route::get(
     [StockMovementController::class, 'index']
 )->name('stock-movements.index');
 
+Route::get(
+    '/stock-movements/export',
+    [StockMovementController::class, 'export']
+)->name('stock-movements.export');
 
 Route::get(
     '/products/{product}/stock-adjustment',
     [StockMovementController::class, 'create']
 )->name('stock-movements.create');
 
-
 Route::post(
     '/products/{product}/stock-adjustment',
     [StockMovementController::class, 'store']
 )->name('stock-movements.store');
-
 
 Route::get(
     '/products/{product}/stock-history',

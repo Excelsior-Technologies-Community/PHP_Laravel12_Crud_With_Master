@@ -15,8 +15,8 @@ class ProductController extends Controller
         $products = Product::with(['category', 'size'])
             ->when($request->input('search'), function ($query, $search) {
                 $query->where(function ($q) use ($search) {
-                    $q->where('name', 'like', '%'.$search.'%')
-                        ->orWhere('sku', 'like', '%'.$search.'%');
+                    $q->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('sku', 'like', '%' . $search . '%');
                 });
             })
             ->when($request->input('category_id'), function ($query, $categoryId) {
@@ -37,8 +37,8 @@ class ProductController extends Controller
             ->when($request->input('status') !== null && $request->input('status') !== '', function ($query) use ($request) {
                 $query->where('status', (bool) $request->input('status'));
             })
-            ->orderBy('id', 'desc')
-            ->paginate(10)
+            ->orderBy('id', 'asc')
+            ->paginate(5)
             ->withQueryString();
 
         $categories = Category::orderBy('name')->get();
@@ -140,7 +140,7 @@ class ProductController extends Controller
             'image_url' => 'nullable|url',
             'color' => 'required|string|max:50',
             'price' => 'required|numeric|min:0',
-            'sku' => 'nullable|string|max:100|unique:products,sku,'.$product->id,
+            'sku' => 'nullable|string|max:100|unique:products,sku,' . $product->id,
             'stock_quantity' => 'required|integer|min:0',
             'min_stock' => 'required|integer|min:0',
             'status' => 'nullable|boolean',
@@ -183,7 +183,7 @@ class ProductController extends Controller
 
     protected function uploadImage(Request $request): string
     {
-        $imageName = time().'_'.uniqid().'.'.$request->image->extension();
+        $imageName = time() . '_' . uniqid() . '.' . $request->image->extension();
 
         $request->image->move(
             public_path('images'),
@@ -199,9 +199,9 @@ class ProductController extends Controller
             $imageName &&
             !str_starts_with($imageName, 'http://') &&
             !str_starts_with($imageName, 'https://') &&
-            File::exists(public_path('images/'.$imageName))
+            File::exists(public_path('images/' . $imageName))
         ) {
-            File::delete(public_path('images/'.$imageName));
+            File::delete(public_path('images/' . $imageName));
         }
     }
 
@@ -226,5 +226,139 @@ class ProductController extends Controller
         }
 
         return $product?->image;
+    }
+
+    public function export(Request $request)
+    {
+        $products = Product::with(['category', 'size'])
+            ->when($request->input('search'), function ($query, $search) {
+                $query->where(function ($q) use ($search) {
+                    $q->where('name', 'like', '%' . $search . '%')
+                        ->orWhere('sku', 'like', '%' . $search . '%');
+                });
+            })
+            ->when($request->input('category_id'), function ($query, $categoryId) {
+                $query->where('category_id', $categoryId);
+            })
+            ->when($request->input('size_id'), function ($query, $sizeId) {
+                $query->where('size_id', $sizeId);
+            })
+            ->when($request->input('color'), function ($query, $color) {
+                $query->where('color', $color);
+            })
+            ->when(
+                $request->input('min_price') !== null &&
+                    $request->input('min_price') !== '',
+                function ($query) use ($request) {
+                    $query->where('price', '>=', $request->input('min_price'));
+                }
+            )
+            ->when(
+                $request->input('max_price') !== null &&
+                    $request->input('max_price') !== '',
+                function ($query) use ($request) {
+                    $query->where('price', '<=', $request->input('max_price'));
+                }
+            )
+            ->when(
+                $request->input('status') !== null &&
+                    $request->input('status') !== '',
+                function ($query) use ($request) {
+                    $query->where(
+                        'status',
+                        (bool) $request->input('status')
+                    );
+                }
+            )
+            ->orderByDesc('id')
+            ->get();
+
+        $filename = 'products_' . date('Y-m-d_H-i-s') . '.csv';
+
+        $headers = [
+            'Content-Type' => 'text/csv',
+            'Content-Disposition' => 'attachment; filename="' . $filename . '"',
+        ];
+
+        $callback = function () use ($products) {
+
+            $file = fopen('php://output', 'w');
+
+            fputcsv($file, [
+                'ID',
+                'Name',
+                'SKU',
+                'Category',
+                'Size',
+                'Color',
+                'Price',
+                'Stock',
+                'Minimum Stock',
+                'Status',
+                'Created At',
+            ]);
+
+            foreach ($products as $product) {
+
+                fputcsv($file, [
+                    $product->id,
+                    $product->name,
+                    $product->sku ?? '',
+                    $product->category->name ?? '',
+                    $product->size->name ?? '',
+                    $product->color,
+                    $product->price,
+                    $product->stock_quantity,
+                    $product->min_stock,
+                    $product->status ? 'Active' : 'Inactive',
+                    $product->created_at,
+                ]);
+            }
+
+            fclose($file);
+        };
+
+        return response()->stream(
+            $callback,
+            200,
+            $headers
+        );
+    }
+
+    public function bulkDelete(Request $request)
+    {
+        $request->validate([
+            'ids' => ['required', 'array', 'min:1'],
+            'ids.*' => ['integer', 'exists:products,id'],
+        ]);
+
+        $products = Product::whereIn('id', $request->ids)->get();
+
+        foreach ($products as $product) {
+            $this->deleteImage($product->image);
+        }
+
+        Product::whereIn('id', $request->ids)->delete();
+
+        return redirect()
+            ->route('products.index')
+            ->with(
+                'success',
+                count($request->ids) . ' product(s) deleted successfully!'
+            );
+    }
+
+    public function toggleStatus(Product $product)
+    {
+        $product->update([
+            'status' => !$product->status,
+        ]);
+
+        return redirect()
+            ->route('products.index')
+            ->with(
+                'success',
+                'Product status updated successfully!'
+            );
     }
 }
